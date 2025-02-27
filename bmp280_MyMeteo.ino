@@ -2,8 +2,6 @@
 #include <Adafruit_BMP280.h>
 #include <WiFiManager.h>
 
-//#define DEBUG_SEND
-
 #define BMP280_I2C_ADDRESS  0x76
 
 Adafruit_BMP280 bmp; // I2C
@@ -39,7 +37,7 @@ float getTemp(int cMeasure) {
     t = bmp.readTemperature();
     Serial.println(t);
     avgTemp += t;
-    delay(100);
+    delay(500);
   }
   return avgTemp / cMeasure;
 }
@@ -55,9 +53,9 @@ float getPress(int cMeasure) {
       avgPress += t;
       cSuccess++;
     }
-    delay(200);
+    delay(500);
   }
-  if (cSucces >= 1) {
+  if (cSuccess >= 1) {
     return avgPress / cSuccess;
   } else {
     return 0;
@@ -101,8 +99,8 @@ bool SendToNarodmon() { // Собственно формирование пак�
   digitalWrite(LED_BUILTIN, LOW);
 
   buf = "#" + MACDevice + "\n"; // заголовок
-  buf = buf + "#TEMPC#" + String(getTemp(10)) + "#Температура BMP280\n"; //показания температуры
-  long pre = getPress(15);
+  buf = buf + "#TEMPC#" + String(getTemp(3)) + "#Температура BMP280\n"; //показания температуры
+  long pre = getPress(5);
   if (pre > 0) {
     buf = buf + "#PRESS#" + String( pre / 133.3) + "#Давление BMP280\n"; //показания давления
   }
