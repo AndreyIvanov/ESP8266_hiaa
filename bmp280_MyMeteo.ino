@@ -10,7 +10,7 @@ Adafruit_BMP280 bmp; // I2C
 
 
 
-#define postingInterval  300000 // интервал между отправками данных в миллисекундах (5 минут)
+#define postingInterval  5*60*1000 // интервал между отправками данных в миллисекундах (5 минут)
 unsigned long lastConnectionTime = 0;           // время последней передачи данных
 String HostName; //имя железки - выглядит как ESPAABBCCDDEEFF т.е. ESP+mac адрес.
 String MACDevice;
@@ -32,11 +32,42 @@ void wifimanstart() { // Волшебная процедура начально�
   Serial.println("connected...");
 }
 
+float getTemp(int cMeasure) {
+  float avgTemp = 0;
+  float t = 0;
+  for (int i = 1; i <= cMeasure; i++) {
+    t = bmp.readTemperature();
+    Serial.println(t);
+    avgTemp += t;
+    delay(100);
+  }
+  return avgTemp / cMeasure;
+}
+
+float getPress(int cMeasure) {
+  float avgPress = 0;
+  int cSuccess = 0;
+  float t = 0;
+  for (int i = 1; i <= cMeasure; i++) {
+    t = bmp.readPressure();
+    Serial.println(t / 133.3);
+    if ((t / 133.3) >= 630 && (t / 133.3) <= 820) {
+      avgPress += t;
+      cSuccess++;
+    }
+    delay(200);
+  }
+  if (cSucces >= 1) {
+    return avgPress / cSuccess;
+  } else {
+    return 0;
+  }
+}
 
 void setup() {
   Serial.begin(9600);
   Serial.println(F("MeteoTest by HIAA (ESP8266, BMP280)"));
-
+  pinMode(LED_BUILTIN, OUTPUT);
   Wire.begin(D2, D1);
 
   while (bmp.begin(BMP280_I2C_ADDRESS) == 0)
@@ -49,7 +80,7 @@ void setup() {
                   Adafruit_BMP280::SAMPLING_X16,     /* Temp. oversampling */
                   Adafruit_BMP280::SAMPLING_X16,    /* Pressure oversampling */
                   Adafruit_BMP280::FILTER_X16,      /* Filtering. */
-                  Adafruit_BMP280::STANDBY_MS_1000); /* Standby time. */
+                  Adafruit_BMP280::STANDBY_MS_500); /* Standby time. */
 
 
   HostName = "ESP" + WiFi.macAddress();
@@ -67,9 +98,14 @@ bool SendToNarodmon() { // Собственно формирование пак�
   WiFiClient client;
 
   String buf;
+  digitalWrite(LED_BUILTIN, LOW);
+
   buf = "#" + MACDevice + "\n"; // заголовок
-  buf = buf + "#TEMPC#" + String(bmp.readTemperature()) + "#Температура BMP280\n"; //показания температуры
-  buf = buf + "#PRESS#" + String(bmp.readPressure() / 133.3) + "#Давление BMP280\n"; //показания давления
+  buf = buf + "#TEMPC#" + String(getTemp(10)) + "#Температура BMP280\n"; //показания температуры
+  long pre = getPress(15);
+  if (pre > 0) {
+    buf = buf + "#PRESS#" + String( pre / 133.3) + "#Давление BMP280\n"; //показания давления
+  }
   buf = buf + "#RSSI#" + String(WiFi.RSSI()) + "#Сигнал WiFi\n"; //показания сигнала WiFi
   buf = buf + "##\n"; //окончание передачи
 
@@ -85,13 +121,15 @@ bool SendToNarodmon() { // Собственно формирование пак�
       Serial.print(line);
     }
   }
+  digitalWrite(LED_BUILTIN, HIGH);
+
   return true; //ушло
 }
 
 
 void loop() {
 
-  
+
   if (millis() - lastConnectionTime > postingInterval) { // ждем 5 минут и отправляем
     if (WiFi.status() == WL_CONNECTED) { // ну конечно если подключены
       if (SendToNarodmon()) {
